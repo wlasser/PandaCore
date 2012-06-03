@@ -6665,8 +6665,7 @@ void Player::SendActionButtons(uint32 state) const
     sLog->outDetail("Sending Action Buttons for '%u' spec '%u'", GetGUIDLow(), GetActiveSpec());
 
     WorldPacket data(SMSG_ACTION_BUTTONS, 1+(MAX_ACTION_BUTTONS*4));
-    data << uint8(state);
-    /*
+   /*
         state can be 0, 1, 2
         0 - Looks to be sent when initial action buttons get sent, however on Trinity we use 1 since 0 had some difficulties
         1 - Used in any SMSG_ACTION_BUTTONS packet with button data on Trinity. Only used after spec swaps on retail.
@@ -6683,7 +6682,9 @@ void Player::SendActionButtons(uint32 state) const
                 data << uint32(0);
         }
     }
-
+	
+	data << uint8(state);
+   
     GetSession()->SendPacket(&data);
     sLog->outDetail("Action Buttons for '%u' spec '%u' Sent", GetGUIDLow(), GetActiveSpec());
 }

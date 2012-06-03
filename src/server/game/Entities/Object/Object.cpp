@@ -196,15 +196,15 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
     if (target == this)                                      // building packet for yourself
         flags |= UPDATEFLAG_HAS_SELF;
 
-    //if (flags & UPDATEFLAG_HAS_POSITION)
-    //{
+    //if (flags & UPDATEFLAG_HAS_STATIONARY_POSITION)
+	//{
         // UPDATETYPE_CREATE_OBJECT2 dynamic objects, corpses...
-        if (isType(TYPEMASK_DYNAMICOBJECT) || isType(TYPEMASK_CORPSE) || isType(TYPEMASK_PLAYER))
-            updatetype = UPDATETYPE_CREATE_OBJECT2;
+   if (isType(TYPEMASK_DYNAMICOBJECT) || isType(TYPEMASK_CORPSE) || isType(TYPEMASK_PLAYER))
+        updatetype = UPDATETYPE_CREATE_OBJECT2;
 
         // UPDATETYPE_CREATE_OBJECT2 for pets...
-        if (target->GetPetGUID() == GetGUID())
-            updatetype = UPDATETYPE_CREATE_OBJECT2;
+   if (target->GetPetGUID() == GetGUID())
+           updatetype = UPDATETYPE_CREATE_OBJECT2;
 
         // UPDATETYPE_CREATE_OBJECT2 for some gameobject types...
         if (isType(TYPEMASK_GAMEOBJECT))
@@ -218,7 +218,7 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
                     updatetype = UPDATETYPE_CREATE_OBJECT2;
                     break;
                 case GAMEOBJECT_TYPE_TRANSPORT:
-                    flags |= UPDATEFLAG_HAS_TRANSPORT;
+                    flags |= UPDATEFLAG_HAS_GO_TRANSPORT_TIME;
                     break;
                 default:
                     break;
@@ -230,9 +230,9 @@ void Object::BuildCreateUpdateBlockForPlayer(UpdateData* data, Player* target) c
             if (((Unit*)this)->getVictim())
                 flags |= UPDATEFLAG_HAS_ATTACKING_TARGET;
         }
-    //}
+   // }
 
-    //sLog->outDebug("BuildCreateUpdate: update-type: %u, object-type: %u got flags: %X, flags2: %X", updatetype, m_objectTypeId, flags, flags2);
+    sLog->outDetail("BuildCreateUpdate: update-type: %u, object-type: %u got flags: %X", updatetype, m_objectTypeId, flags);
 
     ByteBuffer buf(500);
     buf << (uint8)updatetype;
@@ -314,11 +314,11 @@ void Object::_BuildMovementUpdate(ByteBuffer * data, uint16 flags) const
 	data->WriteBit(flags & UPDATEFLAG_HAS_STATIONARY_POSITION);  //Stacitonar Position
     data->WriteBit(0); //unkHasBit_456
 	data->WriteBit(0);//2
-	data->WriteBit(0); //unkHasBit1_408
+	data->WriteBit(flags & UPDATEFLAG_HAS_GO_TRANSPORT_TIME); //unkHasBit1_408
 	bool hasLivingTime = false; //always write time the flags & UPDATEFLAG_HAS_LIVING
 	
 
-	//data->WriteBit(flags & UPDATEFLAG_HAS_TRANSPORT); 
+	//data->WriteBit(flags & UPDATEFLAG_HAS_GO_TRANSPORT_TIME); 
    //data->WriteBit(flags & UPDATEFLAG_HAS_SELF); //0
 
 	 if (flags & UPDATEFLAG_HAS_LIVING)
@@ -464,7 +464,7 @@ void Object::_BuildMovementUpdate(ByteBuffer * data, uint16 flags) const
         *data << ((Unit*)this)->GetPositionZ();
         data->WriteGuidBytes(Guid3, GuidBytes3, 1, 1);
 
-        if (flags & UPDATEFLAG_HAS_TRANSPORT)
+        if (flags & UPDATEFLAG_HAS_GO_TRANSPORT_TIME)
         {
             const Unit* tUnit = ((Unit*)this);
 
@@ -519,7 +519,7 @@ void Object::_BuildMovementUpdate(ByteBuffer * data, uint16 flags) const
         *data << ((Unit*)this)->GetSpeed(MOVE_FLIGHT);//Fly Speed
     }
 
-    // 0x80
+
     if (flags & UPDATEFLAG_HAS_VEHICLE)
     {
         *data << float(((Creature*)this)->GetOrientation());                // facing adjustment
@@ -572,7 +572,7 @@ void Object::_BuildMovementUpdate(ByteBuffer * data, uint16 flags) const
     if (flags & UPDATEFLAG_HAS_ANIMKITS)
         *data << uint16(0) << uint16(0) << uint16(0);
 
-    if(flags & UPDATEFLAG_HAS_TRANSPORT)
+    if(flags & UPDATEFLAG_HAS_GO_TRANSPORT_TIME)
         *data << uint32(getMSTime());
 }
 

@@ -144,8 +144,8 @@ void SpellCastTargets::Write(ByteBuffer& data)
     {
         if (m_itemTarget)
             data.append(m_itemTarget->GetPackGUID());
-        else
-            data << uint8(0);
+       // else
+       //     data << uint8(0);
     }
 
     if (m_targetMask & TARGET_FLAG_SOURCE_LOCATION)
@@ -3819,54 +3819,83 @@ void Spell::SendSpellStart()
 {
     if (!IsNeedSendToClient())
         return;
+	
+    sLog->outDebug(LOG_FILTER_SPELLS_AURAS, "Sending SMSG_SPELL_START id=%u", m_spellInfo->Id);
+   
+	/*clasflag int32 za odredjivane CLASFLAG moze biti razliciti Zavisno sta treba*/
+	uint32 castFlags;	
 
-    //sLog->outDebug(LOG_FILTER_SPELLS_AURAS, "Sending SMSG_SPELL_START id=%u", m_spellInfo->Id);
-
-    uint32 castFlags = CAST_FLAG_UNKNOWN_2;
-
+	castFlags = CAST_FLAG_UNKNOWN_2;
+	// Start generate CastFlags
     if ((IsTriggered() && !m_spellInfo->IsAutoRepeatRangedSpell()) || m_triggeredByAuraSpell)
-        castFlags |= CAST_FLAG_PENDING;
+        castFlags |= CAST_FLAG_PENDING_SPELL_CAST;
 
     if ((m_caster->GetTypeId() == TYPEID_PLAYER ||
         (m_caster->GetTypeId() == TYPEID_UNIT && m_caster->ToCreature()->isPet()))
          && m_spellInfo->PowerType != POWER_HEALTH)
-        castFlags |= CAST_FLAG_POWER_LEFT_SELF;
+        castFlags |= CAST_FLAG_PREDICTED_POWER;
 
     if (m_spellInfo->RuneCostID && m_spellInfo->PowerType == POWER_RUNE)
         castFlags |= CAST_FLAG_UNKNOWN_19;
-
-    WorldPacket data(SMSG_SPELL_START, (8+8+4+4+2));
-    if (m_CastItem)
+	// Set Flas the item Projectile 
+	//if(m_CastItem->GetTypeId() == ITEM_CLASS_PROJECTILE)
+	//	castFlags |= CAST_FLAG_PROJECTILE;
+	// End generate CastFlags
+    WorldPacket data(SMSG_SPELL_START, (50));
+    // Caster
+	if (m_CastItem)
         data.append(m_CastItem->GetPackGUID());
     else
         data.append(m_caster->GetPackGUID());
-
+	// Caster Invoker
     data.append(m_caster->GetPackGUID());
-    data << uint8(m_cast_count);                            // pending spell cast?
-    data << uint32(m_spellInfo->Id);                        // spellId
-    data << uint32(castFlags);                              // cast flags
-    data << int32(m_timer);                                 // delay?
+    // Cast ID
+	data << uint8(m_cast_count);                            // pending spell cast?
+    // Spell ID
+	data << uint32(m_spellInfo->Id);                        // spellId
+    // Cast FLag
+	data << uint32(castFlags);                              // cast flags
+	                              // delay?
+	//////////////////////////////////////////////////////////////////////////////////////////
+	data << uint32(0);
+	//////////////////////////////////////////////////////////////////////////////////////////
+	// CastTime
+    data << int32(m_timer);   
+	
+	m_targets.Write(data); //PendingSpellCastData::FillTargetDat
 
-    m_targets.Write(data);
-
-    if (castFlags & CAST_FLAG_POWER_LEFT_SELF)
+	//////////////////////////////////////////////////////////////////////////////////////////
+    if (castFlags & CAST_FLAG_PREDICTED_POWER)				// predicted power
         data << uint32(m_caster->GetPower((Powers)m_spellInfo->PowerType));
+
+	if (castFlags & CAST_FLAG_RUNES_STATES )
+	{
+		uint8 v1 = 0;										//m_runesState;
+        uint8 v2 = 0;										//((Player*)m_caster)->GetRunesState();
+        data << uint8(v1);                                  // runes state before
+        data << uint8(v2);                                  // runes state after
+        for(uint8 i = 0; i < MAX_RUNES; ++i)
+        {
+            data << uint8(0);                       // some unknown byte (time?)
+        }
+	}
+
+	if (castFlags & CAST_FLAG_PROJECTILE)
+	{	
+		data << uint32(0); // Projectile Display ID
+		data << uint32(0); // Projectile Invetory Type
+	}
 
     if (castFlags & CAST_FLAG_IMMUNITY)
     {
         data << uint32(0);
         data << uint32(0);
+		/////////////////////////////
+		data << uint32(0);
+		data << uint8(2); // if ==2
+		data << uint64(0); //GUID
     }
-
-    if (castFlags & CAST_FLAG_HEAL_PREDICTION)
-    {
-        data << uint32(0);
-        data << uint8(0); // unkByte
-        // if (unkByte == 2)
-            // data.append(0);
-        
-    }
-
+	
     m_caster->SendMessageToSet(&data, true);
 }
 
@@ -3882,12 +3911,12 @@ void Spell::SendSpellGo()
 
     // triggered spells with spell visual != 0
     if ((IsTriggered() && !m_spellInfo->IsAutoRepeatRangedSpell()) || m_triggeredByAuraSpell)
-        castFlags |= CAST_FLAG_PENDING;
+        castFlags |= CAST_FLAG_PENDING_SPELL_CAST;
 
     if ((m_caster->GetTypeId() == TYPEID_PLAYER ||
         (m_caster->GetTypeId() == TYPEID_UNIT && m_caster->ToCreature()->isPet()))
         && m_spellInfo->PowerType != POWER_HEALTH)
-        castFlags |= CAST_FLAG_POWER_LEFT_SELF; // should only be sent to self, but the current messaging doesn't make that possible
+        castFlags |= CAST_FLAG_PREDICTED_POWER; // should only be sent to self, but the current messaging doesn't make that possible
 
     if ((m_caster->GetTypeId() == TYPEID_PLAYER)
         && (m_caster->getClass() == CLASS_DEATH_KNIGHT)
@@ -3895,13 +3924,13 @@ void Spell::SendSpellGo()
         && m_spellInfo->PowerType == POWER_RUNE)
     {
         castFlags |= CAST_FLAG_UNKNOWN_19;                   // same as in SMSG_SPELL_START
-        castFlags |= CAST_FLAG_RUNE_LIST;                    // rune cooldowns list
+        castFlags |= CAST_FLAG_RUNES_STATES;                    // rune cooldowns list
         castFlags |= CAST_FLAG_UNKNOWN_9;                    // ??
     }
 
     if (m_spellInfo->HasEffect(SPELL_EFFECT_ACTIVATE_RUNE))
     {
-        castFlags |= CAST_FLAG_RUNE_LIST;                    // rune cooldowns list
+        castFlags |= CAST_FLAG_RUNES_STATES;                    // rune cooldowns list
         castFlags |= CAST_FLAG_UNKNOWN_19;                   // same as in SMSG_SPELL_START
     }
 
@@ -3919,18 +3948,20 @@ void Spell::SendSpellGo()
     data << uint8(m_cast_count);                            // pending spell cast?
     data << uint32(m_spellInfo->Id);                        // spellId
     data << uint32(castFlags);                              // cast flags
-    data << uint32(getMSTime());                            // timestamp
-
+   /* Unknown 4.3.x*/
+	data << uint32(0);
+	data << uint32(getMSTime());                            // timestamp
+	
     WriteSpellGoTargets(&data);
 
     m_targets.Write(data);
 
-    if (castFlags & CAST_FLAG_POWER_LEFT_SELF)
+    if (castFlags & CAST_FLAG_PREDICTED_POWER)
         data << uint32(m_caster->GetPower((Powers)m_spellInfo->PowerType));
 
-    if (castFlags & CAST_FLAG_RUNE_LIST)                   // rune cooldowns list
+    if (castFlags & CAST_FLAG_RUNES_STATES)                   // rune cooldowns list
     {
-        //TODO: There is a crash caused by a spell with CAST_FLAG_RUNE_LIST casted by a creature
+        //TODO: There is a crash caused by a spell with CAST_FLAG_RUNES_STATES casted by a creature
         //The creature is the mover of a player, so HandleCastSpellOpcode uses it as the caster
         if (Player* player = m_caster->ToPlayer())
         {
@@ -6463,7 +6494,7 @@ bool Spell::IsAutoActionResetSpell() const
     // TODO: changed SPELL_INTERRUPT_FLAG_AUTOATTACK -> SPELL_INTERRUPT_FLAG_INTERRUPT to fix compile - is this check correct at all?
     return !IsTriggered() && (m_spellInfo->InterruptFlags & SPELL_INTERRUPT_FLAG_INTERRUPT);
 }
-
+ /*Ova funcje pozove nesto vraca true ako je ima ali ako je nema*/
 bool Spell::IsNeedSendToClient() const
 {
     return m_spellInfo->SpellVisual[0] || m_spellInfo->SpellVisual[1] || m_spellInfo->IsChanneled() ||

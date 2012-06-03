@@ -153,10 +153,28 @@ namespace Movement
 	 {
 		uint32 nodes = move_spline.getPath().size();
 		
+		//SlineType
+		/*switch (hasSplineType)
+                        {
+                            case 0:
+                                splineType = SplineType.FacingAngle;
+                                break;
+                            case 1:
+                                splineType = SplineType.FacingSpot;
+                                break;
+                            case 2:
+                                splineType = SplineType.FacingTarget;
+                                break;
+                            case 3:
+                                splineType = SplineType.Normal;
+                                break;
+                        }
+		*/
 		data.WriteBits(0, 2); //SPLINEMODE_LINEAR = 0
 		data.WriteBit(false);
 		data.WriteBits(nodes, 22);
-		data.WriteBits(SPLINETYPE_NORMAL, 2);
+		
+		data.WriteBits(3, 2);
 		
 		MoveSplineFlag splineflags = move_spline.splineflags;
 		
